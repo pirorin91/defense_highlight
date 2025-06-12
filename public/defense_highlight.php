@@ -1,4 +1,6 @@
 <?php
+setlocale(LC_CTYPE, 'ja_JP.UTF-8');
+
 // Pythonスクリプトを呼び出してget_game_result_urlを実行
 function get_game_result_url($date, $team) {
     $cmd = escapeshellcmd("python3 ../python/get_game_result_url.py " . escapeshellarg($date) . " " . escapeshellarg($team));
