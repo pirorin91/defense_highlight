@@ -211,7 +211,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($players_info[$player_name]))
             <h2 class="mb-3"><?= htmlspecialchars($player_name) ?>の<?= htmlspecialchars($formatted_date) ?><?= htmlspecialchars($matchup) ?>の守備</h2>
             <ul class="highlight-list list-unstyled">
                 <?php foreach ($result_lines as $line): ?>
-                    <li class="<?= $line['class'] ?>"><?= $line['text'] ?></li>
+                    <?php
+                    // サムネイル画像付きリンクが含まれているか判定
+                    if (preg_match('/<a .*?><img .*?><\/a>/', $line['text'], $matches)) {
+                        // テキスト部分と画像リンク部分に分割
+                        $text_part = preg_replace('/<a .*?><img .*?><\/a>/', '', $line['text']);
+                        $img_link_part = $matches[0];
+                    } else {
+                        $text_part = $line['text'];
+                        $img_link_part = '';
+                    }
+                    ?>
+                    <li class="<?= $line['class'] ?>" style="display: flex; justify-content: space-between; align-items: center;">
+                        <span><?= $text_part ?></span>
+                        <?php if ($img_link_part): ?>
+                            <span><?= $img_link_part ?></span>
+                        <?php endif; ?>
+                    </li>
                 <?php endforeach; ?>
             </ul>
         <?php endif; ?>
