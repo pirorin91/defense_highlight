@@ -1,15 +1,6 @@
 <?php
 setlocale(LC_CTYPE, 'ja_JP.UTF-8');
 
-// Pythonスクリプトを呼び出してget_game_result_urlを実行
-function get_game_result_url($date, $team) {
-    $cmd = escapeshellcmd("python3 ../python/get_game_result_url.py " . escapeshellarg($date) . " " . escapeshellarg($team));
-    $output = shell_exec($cmd);
-    // Python側でJSON文字列を返すようにしておく
-    $result = json_decode($output, true);
-    return $result;
-}
-
 // Pythonスクリプトを呼び出してget_highlightを実行
 function get_highlight($url, $is_home, $player_id) {
     $cmd = escapeshellcmd("python3 ../python/get_highlight.py " . escapeshellarg($url) . " " . escapeshellarg($is_home) . " " . escapeshellarg($player_id));
@@ -17,13 +8,26 @@ function get_highlight($url, $is_home, $player_id) {
     return $output;
 }
 
-// 指定した日付・チームに該当する動画URLとサムネイル画像URLをCSVから取得
-function get_game_video_info($date, $team) {
-    // '2025-04-20' → '2025/4/20' へ変換
+// Pythonスクリプトを呼び出してget_game_info.pyを実行
+function get_game_info($date, $team) {
+    $cmd = escapeshellcmd("python3 ../python/get_game_info.py " . escapeshellarg($date) . " " . escapeshellarg($team));
+    $output = shell_exec($cmd);
+    $result = json_decode($output, true);
+    return $result;
+}
+
+// 日付を"YYYY/M/D"形式に変換する共通関数
+function format_date_jp($date) {
     $date_obj = DateTime::createFromFormat('Y-m-d', $date);
     if ($date_obj) {
-        $date = $date_obj->format('Y/n/j');
+        return $date_obj->format('Y/n/j');
     }
+    return '';
+}
+
+// 指定した日付・チームに該当する動画URLとサムネイル画像URLをCSVから取得
+function get_game_video_info($date, $team) {
+    $formatted_date = format_date_jp($date);
     $csv_path = __DIR__ . '/../data/game_video_info.csv';
     if (!file_exists($csv_path)) return ['url' => '', 'image' => ''];
     $fp = fopen($csv_path, 'r');
@@ -32,7 +36,7 @@ function get_game_video_info($date, $team) {
     while ($row = fgetcsv($fp)) {
         $row_assoc = array_combine($header, $row);
         // 日付とチーム名が一致する行のurlとimageを返す
-        if ($row_assoc['date'] === $date && ($row_assoc['home'] === $team || $row_assoc['away'] === $team)) {
+        if ($row_assoc['date'] === $formatted_date && ($row_assoc['home'] === $team || $row_assoc['away'] === $team)) {
             fclose($fp);
             return ['url' => $row_assoc['url'], 'image' => $row_assoc['image']];
         }
@@ -73,10 +77,13 @@ $result_lines = [];
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($players_info[$player_name])) {
     $player_id = $players_info[$player_name]['Player ID'];
     $team = $players_info[$player_name]['Team'];
-    $game_info = get_game_result_url($date, $team);
+    $game_info = get_game_info($date, $team);
+
+    $formatted_date = format_date_jp($date);
+    $matchup = $game_info['home_team'] . '対' . $game_info['away_team'];
     // 守備なのでホームなら表、アウェイなら裏
-    $is_home_str = $game_info['is_home'] ? '表' : '裏';
-    $highlight_output = get_highlight($game_info['url'], $is_home_str, $player_id);
+    $is_home_str = ($team === $game_info['home_team']) ? '表' : '裏';
+    $highlight_output = get_highlight($game_info['game_url'], $is_home_str, $player_id);
     $video_info = get_game_video_info($date, $team); // urlとimageを取得
 
     // get_highlight.pyの出力各行(JSON)をパースし、iningとtextを表示
@@ -111,7 +118,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($players_info[$player_name]))
             color: #222;
         }
         .main-container {
-            max-width: 600px;
+            max-width: 800px;
             margin: 40px auto;
             background: #fff;
             border-radius: 16px;
@@ -200,7 +207,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($players_info[$player_name]))
             <button type="submit" class="btn btn-primary w-100">検索</button>
         </form>
         <?php if (!empty($result_lines)): ?>
-            <h2 class="mb-3"><?= htmlspecialchars($player_name) ?>の<?= htmlspecialchars($date) ?>の守備</h2>
+            <h2 class="mb-3"><?= htmlspecialchars($player_name) ?>の<?= htmlspecialchars($formatted_date) ?><?= htmlspecialchars($matchup) ?>の守備</h2>
             <ul class="highlight-list list-unstyled">
                 <?php foreach ($result_lines as $line): ?>
                     <li class="<?= $line['class'] ?>"><?= $line['text'] ?></li>
