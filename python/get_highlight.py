@@ -28,9 +28,18 @@ def get_highlight(url, top_bottom, player_id):
     if not inning_sections:
         raise ValueError("指定されたHTML構造にイニングデータが見つかりません。URLやHTML構造を確認してください。")
 
-    # 全てのイニングを処理
+    # 試合終了判定
+    all_summaries = soup.find_all('p', class_='bb-liveText__summary')
+    is_live = True
+    if all_summaries:
+        if all_summaries[-1].get_text(strip=True) == "試合終了":
+            is_live = False
+
+    # liveの場合はreverseで処理
+    inning_iter = reversed(inning_sections) if is_live else inning_sections
+
     position = ''
-    for section in inning_sections:
+    for section in inning_iter:
         inning_label = section.find('h1', class_='bb-liveText__inning')
         if inning_label:
             inning_text = inning_label.text.strip()
@@ -51,9 +60,9 @@ def get_highlight(url, top_bottom, player_id):
                     # ベンチスタートの場合もJSON形式で出力（iningも追加）
                     print(json.dumps({"ining": inning_text, "text": "ベンチスタート", "is_highlight": False}, ensure_ascii=False))
             elif top_bottom in inning_text:
-                # 指定された表/裏に一致するセクションを処理
                 summaries = section.find_all('p', class_='bb-liveText__summary')
-                for summary in summaries:
+                summary_iter = reversed(summaries) if is_live else summaries
+                for summary in summary_iter:
                     # "bb-liveText__summary--change" クラスがセットされている場合の処理
                     if "bb-liveText__summary--change" in summary.get("class", []):
                         # Player IDに基づいてポジションを更新
