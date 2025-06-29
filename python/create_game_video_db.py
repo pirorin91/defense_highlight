@@ -6,22 +6,20 @@ from bs4 import BeautifulSoup
 import re
 import csv
 import os
+import sys
 
-def get_start_id():
-    base_dir = os.path.dirname(os.path.dirname(__file__))
-    data_dir = os.path.join(base_dir, "data")
-    csv_path = os.path.join(data_dir, "game_video_info.csv")
+def get_start_id(csv_path, min_id):
     if not os.path.exists(csv_path):
-        return 501995
+        return min_id
     try:
         with open(csv_path, "r", encoding="utf-8") as f:
             rows = list(csv.reader(f))
             if len(rows) <= 1:
-                return 501995
+                return min_id
             last_row = rows[-1]
             return int(last_row[0]) + 1
     except Exception:
-        return 501995
+        return min_id
 
 def get_existing_ids(csv_path):
     if not os.path.exists(csv_path):
@@ -29,15 +27,21 @@ def get_existing_ids(csv_path):
     with open(csv_path, "r", encoding="utf-8") as f:
         return set(row[0] for row in csv.reader(f) if row and row[0] != "id")
 
-def create_game_video_db():
+def create_game_video_db(is_live=False):
     base_dir = os.path.dirname(os.path.dirname(__file__))
     data_dir = os.path.join(base_dir, "data")
     os.makedirs(data_dir, exist_ok=True)
-    csv_path = os.path.join(data_dir, "game_video_info.csv")
+    if is_live:
+        csv_filename = "game_live_info.csv"
+        min_id = 501734
+    else:
+        csv_filename = "game_video_info.csv"
+        min_id = 501995
+    csv_path = os.path.join(data_dir, csv_filename)
     existing_ids = get_existing_ids(csv_path)
 
-    start_id = get_start_id()
-    current_id = max(501995, start_id - 10)  # 10件前からスタート
+    start_id = get_start_id(csv_path, min_id)
+    current_id = max(min_id, start_id - 10)  # 10件前からスタート
     not_found_count = 0  # 連続で該当フォーマットが見つからなかった回数
 
     while True:
@@ -81,7 +85,10 @@ def create_game_video_db():
 
 # 使用例
 if __name__ == "__main__":
+    is_live = False
+    if len(sys.argv) > 1 and sys.argv[1] == "--live":
+        is_live = True
     try:
-        create_game_video_db()
+        create_game_video_db(is_live=is_live)
     except Exception as e:
         print(f"エラー: {e}")

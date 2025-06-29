@@ -28,21 +28,44 @@ function format_date_jp($date) {
 // 指定した日付・チームに該当する動画URLとサムネイル画像URLをCSVから取得
 function get_game_video_info($date, $team) {
     $formatted_date = format_date_jp($date);
+
+    // まず見逃し配信リストで探す
     $csv_path = __DIR__ . '/../data/game_video_info.csv';
-    if (!file_exists($csv_path)) return ['url' => '', 'image' => ''];
-    $fp = fopen($csv_path, 'r');
-    if (!$fp) return ['url' => '', 'image' => ''];
-    $header = fgetcsv($fp);
-    while ($row = fgetcsv($fp)) {
-        $row_assoc = array_combine($header, $row);
-        // 日付とチーム名が一致する行のurlとimageを返す
-        if ($row_assoc['date'] === $formatted_date && ($row_assoc['home'] === $team || $row_assoc['away'] === $team)) {
+    $result = ['url' => '', 'image' => ''];
+    if (file_exists($csv_path)) {
+        $fp = fopen($csv_path, 'r');
+        if ($fp) {
+            $header = fgetcsv($fp);
+            while ($row = fgetcsv($fp)) {
+                $row_assoc = array_combine($header, $row);
+                if ($row_assoc['date'] === $formatted_date && ($row_assoc['home'] === $team || $row_assoc['away'] === $team)) {
+                    fclose($fp);
+                    return ['url' => $row_assoc['url'], 'image' => $row_assoc['image']];
+                }
+            }
             fclose($fp);
-            return ['url' => $row_assoc['url'], 'image' => $row_assoc['image']];
         }
     }
-    fclose($fp);
-    return ['url' => '', 'image' => ''];
+
+    // 見逃し配信で見つからなければライブ配信リストで探す
+    $live_csv_path = __DIR__ . '/../data/game_live_info.csv';
+    if (file_exists($live_csv_path)) {
+        $fp = fopen($live_csv_path, 'r');
+        if ($fp) {
+            $header = fgetcsv($fp);
+            while ($row = fgetcsv($fp)) {
+                $row_assoc = array_combine($header, $row);
+                if ($row_assoc['date'] === $formatted_date && ($row_assoc['home'] === $team || $row_assoc['away'] === $team)) {
+                    fclose($fp);
+                    return ['url' => $row_assoc['url'], 'image' => $row_assoc['image']];
+                }
+            }
+            fclose($fp);
+        }
+    }
+
+    // どちらにもなければ空を返す
+    return $result;
 }
 
 // players_info.csvを読み込んで選手名→Player ID, Teamの連想配列を作成
