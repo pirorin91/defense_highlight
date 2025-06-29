@@ -23,11 +23,29 @@ def get_start_id():
     except Exception:
         return 501995
 
+def get_existing_ids(csv_path):
+    if not os.path.exists(csv_path):
+        return set()
+    with open(csv_path, "r", encoding="utf-8") as f:
+        return set(row[0] for row in csv.reader(f) if row and row[0] != "id")
+
 def create_game_video_db():
-    current_id = get_start_id()
+    base_dir = os.path.dirname(os.path.dirname(__file__))
+    data_dir = os.path.join(base_dir, "data")
+    os.makedirs(data_dir, exist_ok=True)
+    csv_path = os.path.join(data_dir, "game_video_info.csv")
+    existing_ids = get_existing_ids(csv_path)
+
+    start_id = get_start_id()
+    current_id = max(501995, start_id - 10)  # 10件前からスタート
     not_found_count = 0  # 連続で該当フォーマットが見つからなかった回数
+
     while True:
         content_id = str(current_id)
+        if content_id in existing_ids:
+            current_id += 1
+            continue
+
         url = f"https://sports.tv.rakuten.co.jp/pacificleague/content/{content_id}/"
         response = requests.get(url)
         soup = BeautifulSoup(response.text, "html.parser")
@@ -44,11 +62,6 @@ def create_game_video_db():
             dir2 = tail4[2:4][::-1]  # 後半2文字を逆順に
             image_url = f"https://im.akimg.tv.rakuten.co.jp/content/{dir1}/{dir2}/{content_id}/main.jpg"
 
-            # CSVファイルを一つ上のディレクトリの"data"フォルダに出力
-            base_dir = os.path.dirname(os.path.dirname(__file__))
-            data_dir = os.path.join(base_dir, "data")
-            os.makedirs(data_dir, exist_ok=True)
-            csv_path = os.path.join(data_dir, "game_video_info.csv")
             write_header = not os.path.exists(csv_path)
             with open(csv_path, "a", encoding="utf-8", newline="") as f:
                 writer = csv.writer(f)
@@ -57,15 +70,14 @@ def create_game_video_db():
                 writer.writerow([content_id, date, time, home, away, url, image_url])
             print(f"{csv_path} に追記しました")
             print(f"{content_id} {date} {time} {home} VS {away}")
-            current_id += 1
             not_found_count = 0  # 成功したらリセット
         else:
             print(f"{content_id}: 該当フォーマットが見つかりませんでした。")
             not_found_count += 1
-            current_id += 1
             if not_found_count >= 10:
                 print("10回連続で該当フォーマットが見つかりませんでした。処理を終了します。")
                 break
+        current_id += 1
 
 # 使用例
 if __name__ == "__main__":
