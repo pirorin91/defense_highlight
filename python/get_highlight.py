@@ -3,6 +3,7 @@ import sys
 import requests
 from bs4 import BeautifulSoup
 import json
+import re
 
 position_names = (
     ('ピッチャー', 'キャッチャー', 'ファースト', 'セカンド', 'サード', 'ショート', 'レフト', 'センター', 'ライト', 'DH'),
@@ -40,7 +41,7 @@ def get_highlight(url, top_bottom, player_id):
     # liveの場合はreverseで処理
     inning_iter = reversed(inning_sections) if is_live else inning_sections
 
-    position = ''
+    position_index = None
     for section in inning_iter:
         inning_label = section.find('h1', class_='bb-liveText__inning')
         if not inning_label:
@@ -56,9 +57,9 @@ def get_highlight(url, top_bottom, player_id):
                     position_code = position_text[position_text.find("(") + 1:position_text.find(")")]
                     if position_code in position_names[1]:
                         index = position_names[1].index(position_code)
-                        position = position_names[0][index]
+                        position_index = index
                         # 先発ポジションをJSON形式で出力（iningも追加）
-                        print(json.dumps({"ining": inning_text, "text": f"{position}で先発", "is_highlight": False}, ensure_ascii=False))
+                        print(json.dumps({"ining": inning_text, "text": f"{position_names[0][position_index]}で先発", "is_highlight": False}, ensure_ascii=False))
             else:
                 # ベンチスタートの場合もJSON形式で出力（iningも追加）
                 print(json.dumps({"ining": inning_text, "text": "ベンチスタート", "is_highlight": False}, ensure_ascii=False))
@@ -89,29 +90,32 @@ def get_highlight(url, top_bottom, player_id):
                                 position_text = player_link.find_next_sibling(string=True)
                                 if position_text and "→" in position_text:
                                     position_text_strip = position_text.split("→")[1].strip()
-                                    for pos in position_names[0]:
+                                    for idx, pos in enumerate(position_names[0]):
                                         if position_text_strip.startswith(pos):
-                                            position = pos
+                                            position_index = idx
                                             break
                                     # 守備変更をJSON形式で出力（iningも追加、textからinning_textを除外）
-                                    print(json.dumps({"ining": inning_text, "text": f"守備変更 {position}", "is_highlight": False}, ensure_ascii=False))
+                                    print(json.dumps({"ining": inning_text, "text": f"守備変更 {position_names[0][position_index]}", "is_highlight": False}, ensure_ascii=False))
                                     break
-
                                 # "守備交代:サード " のような文字列を探す
                                 position_text = player_link.find_previous_sibling(string=True)
                                 if position_text and "守備交代:" in position_text:
                                     position_text_strip = position_text.split("守備交代:")[1].strip()
                                     if position_text_strip in position_names[0]:
-                                        position = position_text_strip
+                                        position_index = position_names[0].index(position_text_strip)
                                         # 守備交代をJSON形式で出力（iningも追加、textからinning_textを除外）
-                                        print(json.dumps({"ining": inning_text, "text": f"守備交代 {position}", "is_highlight": False}, ensure_ascii=False))
+                                        print(json.dumps({"ining": inning_text, "text": f"守備交代 {position_names[0][position_index]}", "is_highlight": False}, ensure_ascii=False))
                                         break
                         else:
                             # 通常の処理
-                            if position and position in summary.text:
+                            if position_index is not None and (
+                                position_names[0][position_index] in summary.text or
+                                f"({position_names[1][position_index]})" in summary.text
+                            ):
+                                cleaned_summary = re.sub(r'\s+', ' ', summary.text).strip()
                                 print(json.dumps({
                                     "ining": inning_text,
-                                    "text": f"{batter_number.text.strip('：')}人目の打者 {batter_name} {summary.text.strip()}",
+                                    "text": f"{batter_number.text.strip('：')}人目の打者 {batter_name} {cleaned_summary}",
                                     "is_highlight": True
                                 }, ensure_ascii=False))
 
