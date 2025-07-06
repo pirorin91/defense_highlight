@@ -64,14 +64,13 @@ def get_highlight(url, top_bottom, player_id):
                 # ベンチスタートの場合もJSON形式で出力（iningも追加）
                 print(json.dumps({"ining": inning_text, "text": "ベンチスタート", "is_highlight": False}, ensure_ascii=False))
         elif top_bottom in inning_text:
-            summaries = section.find_all('p', class_='bb-liveText__summary')
-            summary_iter = reversed(summaries) if is_live else summaries
-
             # olタグ内のli（打席ごと）をループ
             ol = section.find('ol', class_='bb-liveText__orderedList')
             if ol:
                 items = ol.find_all('li', class_='bb-liveText__item')
-                for item in items:
+                # 打席（li）自体を逆順にする
+                item_iter = reversed(items) if is_live else items
+                for item in item_iter:
                     batter_info = item.find('p', class_='bb-liveText__batter')
                     if not batter_info:
                         continue
