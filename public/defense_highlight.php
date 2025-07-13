@@ -26,7 +26,7 @@ function format_date_jp($date) {
 }
 
 // 指定した日付・チームに該当する動画URLとサムネイル画像URLをCSVから取得
-function get_game_video_info($date, $team) {
+function get_game_video_info($date, $team, &$is_live = null) {
     $formatted_date = format_date_jp($date);
 
     // まず見逃し配信リストで探す
@@ -40,6 +40,7 @@ function get_game_video_info($date, $team) {
                 $row_assoc = array_combine($header, $row);
                 if ($row_assoc['date'] === $formatted_date && ($row_assoc['home'] === $team || $row_assoc['away'] === $team)) {
                     fclose($fp);
+                    $is_live = false;
                     return ['url' => $row_assoc['url'], 'image' => $row_assoc['image']];
                 }
             }
@@ -57,6 +58,7 @@ function get_game_video_info($date, $team) {
                 $row_assoc = array_combine($header, $row);
                 if ($row_assoc['date'] === $formatted_date && ($row_assoc['home'] === $team || $row_assoc['away'] === $team)) {
                     fclose($fp);
+                    $is_live = true;
                     return ['url' => $row_assoc['url'], 'image' => $row_assoc['image']];
                 }
             }
@@ -65,6 +67,7 @@ function get_game_video_info($date, $team) {
     }
 
     // どちらにもなければ空を返す
+    $is_live = false;
     return $result;
 }
 
@@ -97,6 +100,7 @@ $player_name = $_POST['player_name'] ?? '';
 $result_lines = [];
 
 // フォーム送信時の処理
+$is_live = null;
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($players_info[$player_name])) {
     $player_id = $players_info[$player_name]['Player ID'];
     $team = $players_info[$player_name]['Team'];
@@ -107,7 +111,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($players_info[$player_name]))
     // 守備なのでホームなら表、アウェイなら裏
     $is_home_str = ($team === $game_info['home_team']) ? '表' : '裏';
     $highlight_output = get_highlight($game_info['game_url'], $is_home_str, $player_id);
-    $video_info = get_game_video_info($date, $team); // urlとimageを取得
+    $video_info = get_game_video_info($date, $team, $is_live); // is_liveを参照渡し
 
     // get_highlight.pyの出力各行(JSON)をパースし、iningとtextを表示
     foreach (explode("\n", $highlight_output) as $line) {
@@ -119,10 +123,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($players_info[$player_name]))
         $is_highlight = isset($json['is_highlight']) && $json['is_highlight'];
         $li_class = $is_highlight ? 'highlight-true' : 'highlight-false';
         if ($is_highlight && $video_info['url'] && $video_info['image']) {
-                $text .= ' <a href="' . htmlspecialchars($video_info['url']) . '" target="_blank">'
-                    . '<img src="' . htmlspecialchars($video_info['image']) . '" alt="動画リンク" style="height:40px;vertical-align:middle;">'
-                    . '</a>';
-            }
+            $text .= ' <a href="' . htmlspecialchars($video_info['url']) . '" target="_blank">'
+                . '<img src="' . htmlspecialchars($video_info['image']) . '" alt="動画リンク" style="height:40px;vertical-align:middle;">'
+                . '</a>';
+        }
         $result_lines[] = ['text' => $text, 'class' => $li_class];
     }
 }
@@ -212,6 +216,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($players_info[$player_name]))
                 }
             });
         });
+
+        // ページ全体を1分ごとにリロード（自動更新ONがデフォルト）
+        let autoUpdateCheckbox = document.getElementById('auto-update');
+        let autoUpdateTimer = null;
+
+        function startAutoReload() {
+            if (autoUpdateTimer) clearInterval(autoUpdateTimer);
+            autoUpdateTimer = setInterval(() => {
+                location.reload();
+            }, 60000);
+        }
+        function stopAutoReload() {
+            if (autoUpdateTimer) clearInterval(autoUpdateTimer);
+        }
+
+        // チェックボックスのON/OFFで自動リロード切り替え
+        if (autoUpdateCheckbox) {
+            autoUpdateCheckbox.addEventListener('change', function() {
+                if (this.checked) {
+                    startAutoReload();
+                } else {
+                    stopAutoReload();
+                }
+            });
+            // デフォルトON
+            if (autoUpdateCheckbox.checked) {
+                startAutoReload();
+            }
+        }
     });
     </script>
 </head>
@@ -231,13 +264,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($players_info[$player_name]))
             <button type="submit" class="btn btn-primary w-100">検索</button>
         </form>
         <?php if (!empty($result_lines)): ?>
+            <div class="form-check form-switch mb-3">
+                <input class="form-check-input" type="checkbox" id="auto-update"
+                    <?= ($is_live === false ? '' : 'checked') ?>
+                    <?= ($is_live === false ? 'disabled' : '') ?>>
+                <label class="form-check-label" for="auto-update">
+                    自動更新（1分ごと）
+                    <?php if ($is_live === false): ?>
+                        <span class="text-danger">(ライブ配信時のみ有効)</span>
+                    <?php endif; ?>
+                </label>
+            </div>
             <h2 class="mb-3"><?= htmlspecialchars($player_name) ?>の<?= htmlspecialchars($formatted_date) ?><?= htmlspecialchars($matchup) ?>の守備</h2>
             <ul class="highlight-list list-unstyled">
                 <?php foreach ($result_lines as $line): ?>
                     <?php
-                    // サムネイル画像付きリンクが含まれているか判定
                     if (preg_match('/<a .*?><img .*?><\/a>/', $line['text'], $matches)) {
-                        // テキスト部分と画像リンク部分に分割
                         $text_part = preg_replace('/<a .*?><img .*?><\/a>/', '', $line['text']);
                         $img_link_part = $matches[0];
                     } else {
