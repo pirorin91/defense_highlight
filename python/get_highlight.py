@@ -7,7 +7,8 @@ import re
 
 position_names = (
     ('ピッチャー', 'キャッチャー', 'ファースト', 'セカンド', 'サード', 'ショート', 'レフト', 'センター', 'ライト', 'DH'),
-    ('投', '捕', '一', '二', '三', '遊', '左', '中', '右', '指')
+    ('投', '捕', '一', '二', '三', '遊', '左', '中', '右', '指'),
+    ('1', '2', '3', '4', '5', '6', '7', '8', '9', 'DH')
 )
 
 def get_highlight(url, top_bottom, player_id):
@@ -107,9 +108,15 @@ def get_highlight(url, top_bottom, player_id):
                                         break
                         else:
                             # 通常の処理
+                            double_play_match = re.findall(r'(\d-\d-\d)', summary.text)
+                            double_play_positions = []
+                            if double_play_match:
+                                # 例: "5-4-3" → ['5', '4', '3']
+                                double_play_positions = double_play_match[0].split('-')
                             if position_index is not None and (
                                 position_names[0][position_index] in summary.text or
-                                f"({position_names[1][position_index]})" in summary.text
+                                f"({position_names[1][position_index]})" in summary.text or
+                                (double_play_positions and position_names[2][position_index] in double_play_positions)
                             ):
                                 cleaned_summary = re.sub(r'\s+', ' ', summary.text).strip()
                                 print(json.dumps({
