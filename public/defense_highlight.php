@@ -271,7 +271,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($players_info[$player_name]))
                 <label class="form-check-label" for="auto-update">
                     自動更新（1分ごと）
                     <?php if ($is_live === false): ?>
-                        <span class="text-danger">(ライブ配信時のみ有効)</span>
+                        <span class="text-danger">(試合中のみ有効)</span>
                     <?php endif; ?>
                 </label>
             </div>
