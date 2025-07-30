@@ -52,17 +52,27 @@ def get_highlight(url, top_bottom, player_id):
             # Player IDに基づいてポジションを更新
             player_link = section.find('a', href=lambda href: href and player_id in href)
             if player_link:
-                # "(投)" のような文字列を探す
-                position_text = player_link.find_next_sibling(string=True)
-                if position_text and "(" in position_text and ")" in position_text:
-                    position_code = position_text[position_text.find("(") + 1:position_text.find(")")]
-                    if position_code in position_names[1]:
-                        index = position_names[1].index(position_code)
-                        position_index = index
-                        # 先発ポジションをJSON形式で出力（iningも追加）
-                        print(json.dumps({"ining": inning_text, "text": f"{position_names[0][position_index]}で先発", "is_highlight": False}, ensure_ascii=False))
+                # player_linkの直後のbb-liveText__stateクラスのspan要素を取得
+                next_span = player_link.find_next_sibling('span', class_='bb-liveText__state')
+                if next_span:
+                    position_text = next_span.get_text().strip()
+
+                    if position_text and "(" in position_text and ")" in position_text:
+                        position_code = position_text[position_text.find("(") + 1:position_text.find(")")]
+
+                        if position_code in position_names[1]:
+                            index = position_names[1].index(position_code)
+                            position_index = index
+                            # 先発ポジションをJSON形式で出力
+                            print(json.dumps({"ining": inning_text, "text": f"{position_names[0][position_index]}で先発", "is_highlight": False}, ensure_ascii=False))
+                        else:
+                            print(f"ERROR: position_code '{position_code}' not found in position_names[1]", file=sys.stderr)
+                    else:
+                        print(f"ERROR: position_text format invalid: '{position_text}'", file=sys.stderr)
+                else:
+                    print(f"ERROR: next span not found for player {player_id}", file=sys.stderr)
             else:
-                # ベンチスタートの場合もJSON形式で出力（iningも追加）
+                # ベンチスタートの場合
                 print(json.dumps({"ining": inning_text, "text": "ベンチスタート", "is_highlight": False}, ensure_ascii=False))
         elif top_bottom in inning_text:
             # olタグ内のli（打席ごと）をループ
