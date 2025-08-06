@@ -96,26 +96,30 @@ def get_highlight(url, top_bottom, player_id):
                             # Player IDに基づいてポジションを更新
                             player_link = summary.find('a', href=lambda href: href and player_id in href)
                             if player_link:
-                                # "→ファースト" のような文字列を探す
-                                position_text = player_link.find_next_sibling(string=True)
-                                if position_text and "→" in position_text:
-                                    position_text_strip = position_text.split("→")[1].strip()
+                                summary_text = summary.get_text()
+                                player_name = player_link.get_text().strip()
+
+                                # 正規表現で確実にパターンマッチング
+                                # パターン1: "守備変更:選手名 ポジション→ポジション" または "守備変更:選手名 →ポジション"
+                                pattern1 = rf"守備変更:\s*{re.escape(player_name)}\s*(?:\S+)?→(\S+)"
+                                match1 = re.search(pattern1, summary_text)
+                                if match1:
+                                    new_position = match1.group(1).strip()
                                     for idx, pos in enumerate(position_names[0]):
-                                        if position_text_strip.startswith(pos):
+                                        if new_position.startswith(pos):
                                             position_index = idx
+                                            print(json.dumps({"ining": inning_text, "text": f"守備変更 {position_names[0][position_index]}", "is_highlight": False}, ensure_ascii=False))
                                             break
-                                    # 守備変更をJSON形式で出力（iningも追加、textからinning_textを除外）
-                                    print(json.dumps({"ining": inning_text, "text": f"守備変更 {position_names[0][position_index]}", "is_highlight": False}, ensure_ascii=False))
-                                    break
-                                # "守備交代:サード " のような文字列を探す
-                                position_text = player_link.find_previous_sibling(string=True)
-                                if position_text and "守備交代:" in position_text:
-                                    position_text_strip = position_text.split("守備交代:")[1].strip()
-                                    if position_text_strip in position_names[0]:
-                                        position_index = position_names[0].index(position_text_strip)
-                                        # 守備交代をJSON形式で出力（iningも追加、textからinning_textを除外）
-                                        print(json.dumps({"ining": inning_text, "text": f"守備交代 {position_names[0][position_index]}", "is_highlight": False}, ensure_ascii=False))
-                                        break
+
+                                # パターン2: "守備交代:ポジション 選手名"
+                                else:
+                                    pattern2 = rf"守備交代:\s*(\S+)\s+{re.escape(player_name)}"
+                                    match2 = re.search(pattern2, summary_text)
+                                    if match2:
+                                        new_position = match2.group(1).strip()
+                                        if new_position in position_names[0]:
+                                            position_index = position_names[0].index(new_position)
+                                            print(json.dumps({"ining": inning_text, "text": f"守備交代 {position_names[0][position_index]}", "is_highlight": False}, ensure_ascii=False))
                         else:
                             # 通常の処理
                             double_play_match = re.findall(r'(\d-\d-\d)', summary.text)
@@ -134,6 +138,9 @@ def get_highlight(url, top_bottom, player_id):
                                     "text": f"{batter_number.text.strip('：')}人目の打者 {batter_name} {cleaned_summary}",
                                     "is_highlight": True
                                 }, ensure_ascii=False))
+            else:
+                # olタグが見つからない場合のエラーメッセージ
+                print(f"ERROR: olタグが見つかりません。inning_text: '{inning_text}'", file=sys.stderr)
 
 if __name__ == "__main__":
     # サンプルURL
