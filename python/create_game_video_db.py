@@ -6,7 +6,7 @@ from bs4 import BeautifulSoup
 import re
 import csv
 import os
-import sys
+import argparse
 
 def get_start_id(csv_path, min_id):
     if not os.path.exists(csv_path):
@@ -27,16 +27,16 @@ def get_existing_ids(csv_path):
     with open(csv_path, "r", encoding="utf-8") as f:
         return set(row[0] for row in csv.reader(f) if row and row[0] != "id")
 
-def create_game_video_db(is_live=False):
+def create_game_video_db(is_live=False, user_min_id=None):
     base_dir = os.path.dirname(os.path.dirname(__file__))
     data_dir = os.path.join(base_dir, "data")
     os.makedirs(data_dir, exist_ok=True)
     if is_live:
         csv_filename = "game_live_info.csv"
-        min_id = 501734
+        min_id = user_min_id if user_min_id is not None else 501734
     else:
         csv_filename = "game_video_info.csv"
-        min_id = 501995
+        min_id = user_min_id if user_min_id is not None else 501995
     csv_path = os.path.join(data_dir, csv_filename)
     existing_ids = get_existing_ids(csv_path)
 
@@ -85,10 +85,12 @@ def create_game_video_db(is_live=False):
 
 # 使用例
 if __name__ == "__main__":
-    is_live = False
-    if len(sys.argv) > 1 and sys.argv[1] == "--live":
-        is_live = True
+    parser = argparse.ArgumentParser(description="Create game video/live DB.")
+    parser.add_argument("--live", action="store_true", help="Process live games instead of video games")
+    parser.add_argument("--min_id", type=int, default=None, help="Specify minimum ID to start from")
+    args = parser.parse_args()
+
     try:
-        create_game_video_db(is_live=is_live)
+        create_game_video_db(is_live=args.live, user_min_id=args.min_id)
     except Exception as e:
         print(f"エラー: {e}")
